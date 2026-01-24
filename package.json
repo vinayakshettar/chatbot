@@ -1,0 +1,26 @@
+{
+  "name": "@yourcompany/chatbot",
+  "version": "1.0.0",
+  "description": "AI-powered customer support chatbot with automatic error detection. Works with any backend API.",
+  "main": "chatbot.min.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vinayakshettar/chatbot.git"
+  },
+  "keywords": [
+    "chatbot",
+    "support",
+    "customer-service",
+    "helpdesk",
+    "error-detection",
+    "ticket-system",
+    "ai-chatbot"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vinayakshettar/chatbot/issues"
+  },
+  "homepage": "https://github.com/vinayakshettar/chatbot#readme",
+  "cdn": "https://cdn.jsdelivr.net/gh/inayakshettar/chatbot@latest/chatbot.min.js"
+}
