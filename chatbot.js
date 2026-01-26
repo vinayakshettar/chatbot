@@ -49,7 +49,8 @@
                 uploadedImages: [],
                 sessionId: this.generateSessionId(),
                 autoReportTimer: null,
-                autoReportedErrors: []
+                autoReportedErrors: [],
+                pendingError: null
             };
             this.options = this.initOptions();
             this.container = null;
@@ -208,6 +209,8 @@
                 this.scheduleAutoReport(error, errorSignature);
             } else if (error.severity === 'critical') {
                 this.open();
+                this.state.currentStep = 'error_detected';
+                this.state.pendingError = error;
                 this.addMessage('bot', `⚠️ We detected an error: ${error.message}. Would you like to report this?`);
             }
         }
@@ -268,9 +271,10 @@
                 });
 
                 const result = await response.json();
-                const ticketId = result.ticketId || result.id || 'TK-' + Date.now();
+                console.log(result);
+                console.log(response);
 
-                this.addMessage('bot', `✅ Error automatically reported as ticket #${ticketId}. Our team will investigate.`);
+                this.addMessage('bot', `✅ Error automatically reported as ticket #${result}. Our team will investigate.`);
 
                 if (this.config.onAutoReport) {
                     this.config.onAutoReport(ticketId, autoTicketData);
@@ -475,6 +479,17 @@
             const step = this.state.currentStep;
             const data = this.state.ticketData;
 
+            if (step === 'error_detected') {
+                return `<div class="options-container">
+<button class="option-button primary" onclick="window.supportChatbot.reportDetectedError()">
+  🐛 Report This Error
+</button>
+<button class="option-button" onclick="window.supportChatbot.dismissError()">
+  ❌ Dismiss
+</button>
+</div>`;
+            }
+
             if (step === 'greeting') {
                 return `<div class="options-container">
 <button class="option-button primary" onclick="window.supportChatbot.startReportIssue()">🛠 Open a support ticket</button>
@@ -579,10 +594,86 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                 this.state.currentStep = 'description';
                 this.addMessage('bot', 'Please describe the issue you\'re experiencing in detail:');
             } else {
-                this.addMessage('user', '❌ No, I\'m done');
                 this.addMessage('bot', 'Thank you for using our support system! Feel free to reach out anytime. 👋');
                 this.state.currentStep = 'closed';
             }
+        }
+
+        async reportDetectedError() {
+            if (!this.state.pendingError) return;
+
+            this.addMessage('user', '🐛 Report This Error');
+            this.addMessage('bot', '📝 Submitting error report...');
+
+            const error = this.state.pendingError;
+            const errorSignature = `${error.type}-${error.message}`;
+
+            // Mark as reported to prevent duplicate auto-reports
+            this.state.autoReportedErrors.push(errorSignature);
+
+            // Build error description
+            const errorDescription = this.buildErrorDescription(error);
+
+            // Create ticket with default values
+            const errorTicketData = {
+                ...this.config.autoReportDefaults,
+                description: errorDescription,
+                images: [],
+                errors: [error],
+                metadata: {
+                    userAgent: navigator.userAgent,
+                    url: window.location.href,
+                    timestamp: new Date().toISOString(),
+                    sessionId: this.state.sessionId,
+                    userReported: true
+                }
+            };
+
+            try {
+                const formData = new FormData();
+                for (const key in errorTicketData) {
+                    if (key !== 'images' && key !== 'errors') {
+                        formData.append(key, typeof errorTicketData[key] === 'object' ?
+                            JSON.stringify(errorTicketData[key]) : errorTicketData[key]);
+                    }
+                }
+                const url = `${this.config.apiBaseUrl}${this.config.endpoints.createTicket}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                this.addMessage('bot', `✅ Error reported successfully as ticket #${result.ticketId}. Our team will investigate this issue.`);
+
+                if (this.config.onTicketCreated) {
+                    this.config.onTicketCreated(ticketId, errorTicketData);
+                }
+
+                // Clear the pending error
+                this.state.pendingError = null;
+                this.state.detectedErrors = [];
+                this.updateErrorBadge();
+
+                // Reset to greeting after 3 seconds
+                setTimeout(() => {
+                    this.state.currentStep = 'greeting';
+                    this.render();
+                }, 3000);
+
+            } catch (error) {
+                console.error('Error report failed:', error);
+                this.addMessage('bot', '❌ Failed to submit error report. Please try again.');
+                this.state.currentStep = 'error_detected';
+            }
+        }
+
+        dismissError() {
+            this.addMessage('user', '❌ Dismiss');
+            this.addMessage('bot', 'Okay, I\'ve dismissed this error. Let me know if you need anything else!');
+            this.state.pendingError = null;
+            this.state.currentStep = 'greeting';
+            this.render();
         }
 
         selectContactOption(option) {
@@ -655,17 +746,13 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                     this.addMessage('bot', `❌ File too large: ${file.name} (max ${maxMB}MB)`);
                     return;
                 }
-
+                this.state.ticketData.images.push(file);
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     this.state.uploadedImages.push({
                         name: file.name, type: file.type, size: file.size,
                         data: e.target.result, uploadedAt: new Date().toISOString()
                     });
-                    this.state.ticketData.images.push({
-                        name: file.name, type: file.type, size: file.size, data: e.target.result
-                    });
-                    this.addMessage('bot', `✅ Image uploaded: ${file.name}`);
                     this.render();
                 };
                 reader.readAsDataURL(file);
@@ -679,7 +766,6 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
             }
 
             try {
-                this.addMessage('bot', '📸 Capturing screenshot...');
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 const canvas = await html2canvas(document.body, {
@@ -695,8 +781,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                             return;
                         }
 
-                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-                        const fileName = `screenshot_${timestamp}.png`;
+                        const fileName = e.fileName;
 
                         this.state.uploadedImages.push({
                             name: fileName, type: 'image/png', size: blob.size,
@@ -707,7 +792,6 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                             data: e.target.result, isScreenshot: true
                         });
 
-                        this.addMessage('bot', `✅ Screenshot captured: ${fileName}`);
                         this.render();
                     };
                     reader.readAsDataURL(blob);
@@ -749,20 +833,31 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
             try {
                 const formData = new FormData();
                 for (const key in this.state.ticketData) {
-                    if (key !== 'images') {
-                        formData.append(key, this.state.ticketData[key]);
+                    const value = this.state.ticketData[key];
+
+                    if (value === null || value === undefined) continue;
+
+                    if (key === 'images') continue;
+
+                    // Enums / numbers / strings
+                    if (typeof value === 'string' || typeof value === 'number') {
+                        formData.append(key, value.toString());
+                    }
+                    // Objects (metadata, errors, etc.)
+                    else if (typeof value === 'object') {
+                        formData.append(key, JSON.stringify(value));
                     }
                 }
+                debugger;
+                // Files MUST be appended separately
                 this.state.ticketData.images?.forEach((file) => {
-                    formData.append('files', file);
+                    formData.append('files', file, file.name);
                 });
-
                 const url = `${this.config.apiBaseUrl}${this.config.endpoints.createTicket}`;
                 const response = await fetch(url, { method: 'POST', body: formData });
                 const result = await response.json();
-                const ticketId = result.ticketId || result.id || 'TK-' + Date.now();
 
-                this.addMessage('bot', `✅ Success! Your ticket #${ticketId} has been created.`);
+                this.addMessage('bot', `✅ Success! Your ticket #${result.ticketId} has been created.`);
 
                 if (this.config.onTicketCreated) {
                     this.config.onTicketCreated(ticketId, this.state.ticketData);
