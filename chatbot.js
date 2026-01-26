@@ -346,7 +346,7 @@
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .message.user { justify-content: flex-end; }
 .message-content { max-width: 80%; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
-.message.bot .message-content { background: white; color: #1f2937; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.message.bot .message-content { background: #d1d5db; color: #1f2937; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .message.user .message-content { background: ${this.config.primaryColor}; color: white; }
 .message-time { font-size: 11px; opacity: 0.7; margin-top: 4px; }
 .options-container { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; animation: slideIn 0.3s ease-out; }
@@ -361,10 +361,10 @@
 .input-actions .action-btn svg { width: 20px; height: 20px; }
 .input-row { display: flex; gap: 8px; }
 .chatbot-input { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; }
-.chatbot-input:focus { border-color: ${this.config.primaryColor}; box-shadow: 0 0 0 3px ${this.adjustColor(this.config.primaryColor, 90)}; }
-.send-button { padding: 10px 16px; background: ${this.config.primaryColor}; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: inherit; transition: all 0.2s; }
+.chatbot-input:focus { border-color: ${this.config.primaryColor}; box-shadow: 0 0 0 3px ${this.adjustColor(this.config.primaryColor, 60)}; }
+.send-button { padding: 10px 16px; background: ${this.config.primaryColor}; color: white; border: none; border-radius: 24px; cursor: pointer; font-weight: 600; font-family: inherit; transition: all 0.2s; }
 .send-button:hover { background: ${this.adjustColor(this.config.primaryColor, -10)}; }
-.send-button:disabled { background: #d1d5db; cursor: not-allowed; }
+.send-button:disabled { background: #eaecf07e; cursor: not-allowed; }
 .loader { border: 2px solid #f3f4f6; border-top: 2px solid ${this.config.primaryColor}; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .submit-button { width: 100%; padding: 12px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 8px; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
@@ -459,7 +459,8 @@
     </div>
     <div class="input-row">
       <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Type a message..." />
-      <button class="send-button" onclick="window.supportChatbot.send()">Send</button>
+      
+      <button onclick="window.supportChatbot.send()"  class="send-button w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send w-4 h-4 text-white"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg></button>
     </div>
   </div>
 </div>`;
@@ -489,7 +490,9 @@
 </button>
 </div>`;
             }
-
+            if (step === 'closed') {
+                return ''; // No options when conversation is closed
+            }
             if (step === 'greeting') {
                 return `<div class="options-container">
 <button class="option-button primary" onclick="window.supportChatbot.startReportIssue()">🛠 Open a support ticket</button>
@@ -507,22 +510,22 @@
 <button class="option-button" onclick="window.supportChatbot.selectContactOption('skip')">⏭️ Skip (submit anonymously)</button>
 </div>`;
             }
-            if (step === 'impact' && !data.impact) {
+            if (step === 'impact') {
                 return `<div class="options-container">
 ${this.options.impact.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('impact', '${opt.id}')">${opt.label}</button>`).join('')}
 </div>`;
             }
-            if (step === 'urgency' && !data.urgency) {
+            if (step === 'urgency') {
                 return `<div class="options-container">
 ${this.options.urgency.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('urgency', '${opt.id}')">${opt.label}</button>`).join('')}
 </div>`;
             }
-            if (step === 'priority' && !data.priority) {
+            if (step === 'priority') {
                 return `<div class="options-container">
 ${this.options.priority.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('priority', '${opt.id}')">${opt.label}</button>`).join('')}
 </div>`;
             }
-            if (step === 'category' && !data.category) {
+            if (step === 'category') {
                 return `<div class="options-container">
 ${this.options.category.map(cat => `<button class="option-button" onclick="window.supportChatbot.selectOption('category', '${cat}')">${cat}</button>`).join('')}
 </div>`;
@@ -596,6 +599,10 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
             } else {
                 this.addMessage('bot', 'Thank you for using our support system! Feel free to reach out anytime. 👋');
                 this.state.currentStep = 'closed';
+                setTimeout(() => {
+                    this.state.currentStep = 'greeting';
+                    this.render();
+                }, 100);
             }
         }
 
@@ -701,6 +708,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                 this.state.ticketData.description = message;
                 this.state.currentStep = 'impact';
                 this.addMessage('bot', 'Thanks! Now, who is affected by this issue?');
+                this.render();
             } else if (this.state.currentStep === 'contact') {
                 this.state.ticketData.contactDetails = message;
                 this.state.currentStep = 'confirmation';
@@ -753,7 +761,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                         name: file.name, type: file.type, size: file.size,
                         data: e.target.result, uploadedAt: new Date().toISOString()
                     });
-                    this.render();
+                    this.updateImagePreview();
                 };
                 reader.readAsDataURL(file);
             });
@@ -810,11 +818,27 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                 document.head.appendChild(script);
             });
         }
+        updateImagePreview() {
+            const inputArea = this.container?.querySelector('.chatbot-input-area');
+            if (!inputArea) return;
 
+            // Remove old preview if exists
+            const oldPreview = inputArea.querySelector('.image-preview');
+            if (oldPreview) {
+                oldPreview.remove();
+            }
+
+            // Add new preview if we have images
+            if (this.state.uploadedImages.length > 0) {
+                const previewHTML = this.renderImagePreviews();
+                const inputActions = inputArea.querySelector('.input-actions');
+                inputActions.insertAdjacentHTML('beforebegin', previewHTML);
+            }
+        }
         removeImage(index) {
             this.state.uploadedImages.splice(index, 1);
             this.state.ticketData.images.splice(index, 1);
-            this.render();
+            this.updateImagePreview();
         }
 
         async submitTicket() {
@@ -848,7 +872,6 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                         formData.append(key, JSON.stringify(value));
                     }
                 }
-                debugger;
                 // Files MUST be appended separately
                 this.state.ticketData.images?.forEach((file) => {
                     formData.append('files', file, file.name);
