@@ -252,7 +252,7 @@
             };
 
             this.open();
-            this.addMessage('bot', `🤖 Auto-reporting error: ${triggeringError.type} - ${triggeringError.message}`);
+            this.addMessage('bot', `Auto-reporting error: ${triggeringError.type} - ${triggeringError.message}`);
 
             try {
                 const formData = new FormData();
@@ -271,9 +271,7 @@
                 });
 
                 const result = await response.json();
-                console.log(result);
-                console.log(response);
-
+                // this.open()
                 this.addMessage('bot', `✅ Error automatically reported as ticket #${result}. Our team will investigate.`);
 
                 if (this.config.onAutoReport) {
@@ -291,7 +289,7 @@
 
         buildErrorDescription(primaryError) {
             const lines = [
-                '🤖 AUTOMATICALLY REPORTED ERROR', '',
+                'AUTOMATICALLY REPORTED ERROR', '',
                 `Primary Error: ${primaryError.type}`,
                 `Message: ${primaryError.message}`,
                 `Timestamp: ${primaryError.timestamp}`, ''
@@ -345,7 +343,7 @@
 .message { margin-bottom: 12px; display: flex; animation: slideIn 0.3s ease-out; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .message.user { justify-content: flex-end; }
-.message-content { max-width: 80%; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+.message-content { max-width: 80%; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
 .message.bot .message-content { background: #d1d5db; color: #1f2937; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .message.user .message-content { background: ${this.config.primaryColor}; color: white; }
 .message-time { font-size: 11px; opacity: 0.7; margin-top: 4px; }
@@ -512,22 +510,22 @@
             }
             if (step === 'impact') {
                 return `<div class="options-container">
-${this.options.impact.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('impact', '${opt.id}')">${opt.label}</button>`).join('')}
+${this.options.impact.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('impact', '${opt.id}','${opt.label}')">${opt.label}</button>`).join('')}
 </div>`;
             }
             if (step === 'urgency') {
                 return `<div class="options-container">
-${this.options.urgency.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('urgency', '${opt.id}')">${opt.label}</button>`).join('')}
+${this.options.urgency.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('urgency', '${opt.id}','${opt.label}')">${opt.label}</button>`).join('')}
 </div>`;
             }
             if (step === 'priority') {
                 return `<div class="options-container">
-${this.options.priority.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('priority', '${opt.id}')">${opt.label}</button>`).join('')}
+${this.options.priority.map(opt => `<button class="option-button" onclick="window.supportChatbot.selectOption('priority', '${opt.id}','${opt.label}')">${opt.label}</button>`).join('')}
 </div>`;
             }
             if (step === 'category') {
                 return `<div class="options-container">
-${this.options.category.map(cat => `<button class="option-button" onclick="window.supportChatbot.selectOption('category', '${cat}')">${cat}</button>`).join('')}
+${this.options.category.map(cat => `<button class="option-button" onclick="window.supportChatbot.selectOption('category', '${cat}','${cat}')">${cat}</button>`).join('')}
 </div>`;
             }
             if (step === 'confirmation') {
@@ -707,7 +705,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
             if (this.state.currentStep === 'description') {
                 this.state.ticketData.description = message;
                 this.state.currentStep = 'impact';
-                this.addMessage('bot', 'Thanks! Now, who is affected by this issue?');
+                this.addMessage('bot', 'Who is affected by this issue?');
                 this.render();
             } else if (this.state.currentStep === 'contact') {
                 this.state.ticketData.contactDetails = message;
@@ -716,9 +714,9 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
             }
         }
 
-        selectOption(step, value) {
+        selectOption(step, value, label) {
             this.state.ticketData[step] = value;
-            this.addMessage('user', value);
+            this.addMessage('user', label);
 
             const nextSteps = {
                 category: { next: 'contact_prompt', msg: 'Would you like to provide your email address for follow-up?' },
