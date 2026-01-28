@@ -25,7 +25,7 @@
             urgency: 'CanWorkWithManyDifficulties',
             priority: 'High',
             category: 'Functional issue Report',
-            contactDetails: 'Auto-reported'
+            contact: 'Auto-reported'
         },
 
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +64,7 @@
         initTicketData() {
             return {
                 impact: '', urgency: '', priority: '', category: '',
-                description: '', contactDetails: '', images: [], errors: [],
+                description: '', contact: '', images: [], errors: [],
                 metadata: {
                     userAgent: navigator.userAgent,
                     url: window.location.href,
@@ -87,8 +87,8 @@
                     { id: 'CannotWork', label: 'I cannot work' }
                 ],
                 priority: [
-                    { id: 'Low', label: 'Low' }, { id: 'Normal', label: 'Normal' },
-                    { id: 'High', label: 'High' }, { id: 'Critical', label: 'Critical' }
+                    { id: 'Normal', label: 'Normal' },
+                    { id: 'High', label: 'High' }
                 ],
                 category: ['UI/UX', 'Functional issue Report', 'Other']
             };
@@ -270,6 +270,10 @@
                     body: formData
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
                 // this.open()
                 this.addMessage('bot', `✅ Error automatically reported as ticket #${result}. Our team will investigate.`);
@@ -305,10 +309,6 @@
                     lines.push(`${idx + 1}. ${err.type}: ${err.message}`);
                 });
             }
-
-            lines.push('', `Session ID: ${this.state.sessionId}`);
-            lines.push(`User Agent: ${navigator.userAgent}`);
-            lines.push(`Page URL: ${window.location.href}`);
 
             return lines.join('\n');
         }
@@ -537,7 +537,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
   <p><strong>Urgency:</strong> ${data.urgency}</p>
   <p><strong>Priority:</strong> ${data.priority}</p>
   <p><strong>Category:</strong> ${data.category}</p>
-  ${data.contactDetails ? `<p><strong>Contact:</strong> ${data.contactDetails}</p>` : '<p><strong>Contact:</strong> Anonymous</p>'}
+  ${data.contact ? `<p><strong>Contact:</strong> ${data.contact}</p>` : '<p><strong>Contact:</strong> Anonymous</p>'}
   ${data.images.length > 0 ? `<p><strong>Attachments:</strong> ${data.images.length} file(s)</p>` : ''}
   ${this.state.detectedErrors.length > 0 ? `<p><strong>Detected Errors:</strong> ${this.state.detectedErrors.length} error(s)</p>` : ''}
 </div>
@@ -607,8 +607,14 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
         async reportDetectedError() {
             if (!this.state.pendingError) return;
 
+            // Immediately change state to prevent button from showing again
+            this.state.currentStep = 'submitting_error';
+
             this.addMessage('user', '🐛 Report This Error');
-            this.addMessage('bot', '📝 Submitting error report...');
+
+            // Show loader instead of text message
+            this.state.isLoading = true;
+            this.render();
 
             const error = this.state.pendingError;
             const errorSignature = `${error.type}-${error.message}`;
@@ -648,28 +654,36 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                     body: formData
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
+
+                // Turn off loader
+                this.state.isLoading = false;
+
+                // Clear the pending error and change state immediately
+                this.state.pendingError = null;
+                this.state.detectedErrors = [];
+                this.state.currentStep = 'greeting';
+                this.updateErrorBadge();
+
                 this.addMessage('bot', `✅ Error reported successfully as ticket #${result.ticketId}. Our team will investigate this issue.`);
 
                 if (this.config.onTicketCreated) {
                     this.config.onTicketCreated(ticketId, errorTicketData);
                 }
 
-                // Clear the pending error
-                this.state.pendingError = null;
-                this.state.detectedErrors = [];
-                this.updateErrorBadge();
-
-                // Reset to greeting after 3 seconds
-                setTimeout(() => {
-                    this.state.currentStep = 'greeting';
-                    this.render();
-                }, 3000);
+                // Re-render to update UI with new state
+                this.render();
 
             } catch (error) {
                 console.error('Error report failed:', error);
+                this.state.isLoading = false;
                 this.addMessage('bot', '❌ Failed to submit error report. Please try again.');
                 this.state.currentStep = 'error_detected';
+                this.render();
             }
         }
 
@@ -688,7 +702,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                 this.addMessage('bot', 'Please provide your email address:');
             } else {
                 this.addMessage('user', '⏭️ Skip (submit anonymously)');
-                this.state.ticketData.contactDetails = 'Anonymous';
+                this.state.ticketData.contact = 'Anonymous';
                 this.state.currentStep = 'confirmation';
                 this.addMessage('bot', 'Perfect! Review your ticket and click Submit when ready.');
             }
@@ -708,7 +722,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                 this.addMessage('bot', 'Who is affected by this issue?');
                 this.render();
             } else if (this.state.currentStep === 'contact') {
-                this.state.ticketData.contactDetails = message;
+                this.state.ticketData.contact = message;
                 this.state.currentStep = 'confirmation';
                 this.addMessage('bot', 'Perfect! Review your ticket and click Submit when ready.');
             }
@@ -719,7 +733,7 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
             this.addMessage('user', label);
 
             const nextSteps = {
-                category: { next: 'contact_prompt', msg: 'Would you like to provide your email address for follow-up?' },
+                category: { next: 'contact_prompt', msg: 'Would you like to provide your email for follow-up?' },
                 impact: { next: 'urgency', msg: 'How urgent is this issue for you?' },
                 urgency: { next: 'priority', msg: 'What priority level would you assign?' },
                 priority: { next: 'category', msg: 'Please select the category:' }
@@ -780,6 +794,17 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                 });
 
                 canvas.toBlob((blob) => {
+
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                    const fileName = `screenshot_${timestamp}.png`;
+
+                    // Convert Blob to File
+                    const file = new File([blob], fileName, {
+                        type: 'image/png',
+                        lastModified: Date.now()
+                    });
+                    this.state.ticketData.images.push(file);
+
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         if (this.state.uploadedImages.length >= this.config.maxFiles) {
@@ -792,10 +817,6 @@ ${this.options.category.map(cat => `<button class="option-button" onclick="windo
                         this.state.uploadedImages.push({
                             name: fileName, type: 'image/png', size: blob.size,
                             data: e.target.result, isScreenshot: true, uploadedAt: new Date().toISOString()
-                        });
-                        this.state.ticketData.images.push({
-                            name: fileName, type: 'image/png', size: blob.size,
-                            data: e.target.result, isScreenshot: true
                         });
 
                         this.render();
